@@ -1,0 +1,2 @@
+export declare const getLeaderboard: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
+//# sourceMappingURL=leaderboard.controller.d.ts.map

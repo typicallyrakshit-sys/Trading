@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NYDC Crypto Trading - Positions</title>
+    <link rel="stylesheet" href="style.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+    <div class="topbar" aria-label="NYDC 2026 announcement bar">
+        NYDC 2026 &nbsp;·&nbsp; CRYPTO TRADING CHAMPIONSHIP &nbsp;·&nbsp; POWERED BY <strong>GENSPARK</strong>
+    </div>
+
+    <nav class="navbar">
+        <div class="nav-left">
+            <img src="assets/logo.png" alt="NYDC Logo" class="logo" />
+            <span class="competition-name">NYDC <span class="competition-name-accent">Crypto</span> Trading Championship</span>
+        </div>
+
+        <div class="nav-right">
+            <a href="index.html" class="nav-item" style="font-weight:600;">Trade</a>
+            <a href="positions.html" class="nav-item" style="font-weight:600;">Positions</a>
+            <div class="nav-item" id="portfolio-value">100,000.00 USDT</div>
+            <div class="nav-item market-open" id="market-status">OPEN</div>
+            <button class="logout-nav-btn" id="logout-btn">Sign Out</button>
+        </div>
+    </nav>
+
+    <main class="main-wrapper">
+        <div class="positions-container">
+            <div class="positions-tabs" id="positions-tabs">
+                <div class="positions-tab active" data-tab="positions">Open Positions</div>
+                <div class="positions-tab" data-tab="closed">Closed Positions</div>
+                <div class="positions-tab" data-tab="orders">Open Orders</div>
+                <div class="positions-tab" data-tab="history">Order History</div>
+                <div class="positions-tab" data-tab="trades">Trade History</div>
+            </div>
+            <div class="positions-content" id="positions-content">
+                <!-- Tables populated by script.js -->
+            </div>
+        </div>
+    </main>
+
+
+
+    <!-- Firebase Compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

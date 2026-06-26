@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYDC Crypto Trading - Login</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- NYDC Brand Top Bar -->
+    <div class="topbar">
+        NYDC 2026 &nbsp;·&nbsp; CRYPTO TRADING CHAMPIONSHIP &nbsp;·&nbsp; POWERED BY <strong>GENSPARK</strong>
+    </div>
+
+    <main class="login-wrapper">
+        <div class="login-card">
+            <img src="assets/logo.png" alt="NYDC Logo" class="login-logo" onerror="this.src='nydc-logo.png'">
+            <h1 class="login-title">NYDC Trading Login</h1>
+            
+            <form id="login-form">
+                <div class="login-form-group">
+                    <label for="login-email">Email Address</label>
+                    <input type="email" id="login-email" class="login-input" required placeholder="email">
+                </div>
+                <div class="login-form-group" style="margin-top: 15px;">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" class="login-input" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="login-btn">Sign In</button>
+            </form>
+        </div>
+    </main>
+
+
+
+    <!-- Firebase Compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="config.js"></script>
+    
+    <script>
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Check if user is already logged in
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                try {
+                    const doc = await db.collection("users").doc(user.uid).get();
+                    if (doc.exists) {
+                        const data = doc.data();
+                        if (data.role === 'admin') {
+                            window.location.href = "admin.html";
+                        } else {
+                            window.location.href = "index.html";
+                        }
+                    } else {
+                        // User exists in Auth but not in Firestore yet
+                        // Handle auto-setup for admin@nydc.in
+                        if (user.email === 'admin@nydc.in' || user.email.includes('admin')) {
+                            await db.collection("users").doc(user.uid).set({
+                                name: "NYDC Admin",
+                                email: user.email,
+                                role: 'admin',
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                            window.location.href = "admin.html";
+                        } else {
+                            // Default participant fallback
+                            await db.collection("users").doc(user.uid).set({
+                                name: "Trader",
+                                email: user.email,
+                                role: 'participant',
+                                availableBalance: 100000,
+                                portfolioValue: 100000,
+                                unrealizedPnL: 0,
+                                realizedPnL: 0,
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                            window.location.href = "index.html";
+                        }
+                    }
+                } catch (e) {
+                    console.error("Auth state check error:", e);
+                }
+            }
+        });
+
+        // Form Submission
+        document.getElementById("login-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const email = document.getElementById("login-email").value.trim();
+            const password = document.getElementById("login-password").value;
+
+            try {
+                // If it is first-time admin setup and they don't have an auth account, 
+                // we try to sign in. Since Firebase now groups wrong password and user-not-found under 'auth/invalid-credential',
+                // we catch it and try to register them if it is the admin email.
+                try {
+                    await auth.signInWithEmailAndPassword(email, password);
+                } catch (signInErr) {
+                    const isNewAdmin = email === 'admin@nydc.in' || email.includes('admin');
+                    const isUserNotFound = signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential';
+                    
+                    if (isNewAdmin && isUserNotFound) {
+                        try {
+                            // Try to dynamically create the admin account
+                            const userCred = await auth.createUserWithEmailAndPassword(email, password);
+                            await db.collection("users").doc(userCred.user.uid).set({
+                                name: "NYDC Admin",
+                                email: email,
+                                role: 'admin',
+                                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                            window.location.href = "admin.html";
+                        } catch (createErr) {
+                            // If user already exists (i.e. this was just a wrong password attempt), throw original sign-in error
+                            if (createErr.code === 'auth/email-already-in-use') {
+                                throw signInErr;
+                            } else {
+                                throw createErr;
+                            }
+                        }
+                    } else {
+                        throw signInErr;
+                    }
+                }
+            } catch (err) {
+                console.error("Login failed:", err);
+                alert("Login Failed: " + err.message);
+            }
+        });
+    </script>
+</body>
+</html>

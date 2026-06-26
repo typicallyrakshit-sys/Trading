@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PARTICIPANT
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  PENDING
+  FILLED
+  CANCELLED
+}
+
+enum CompetitionStatus {
+  UPCOMING
+  LIVE
+  PAUSED
+  ENDED
+}
+
+model User {
+  id          String   @id @default(cuid())
+  firebaseUid String?  @unique
+  email       String   @unique
+  name        String
+  avatar      String?  @default("")
+  role        Role     @default(PARTICIPANT)
+  balance     Float    @default(1000000)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  positions   Position[]
+  orders      Order[]
+  portfolio   Portfolio?
+  leaderboard Leaderboard?
+
+  @@map("users")
+}
+
+model Position {
+  id           String   @id @default(cuid())
+  userId       String
+  symbol       String
+  quantity     Float
+  averagePrice Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, symbol])
+  @@map("positions")
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  userId    String
+  symbol    String
+  side      OrderSide
+  quantity  Float
+  price     Float
+  status    OrderStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("orders")
+}
+
+model Portfolio {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  cashBalance     Float    @default(1000000)
+  portfolioValue  Float    @default(1000000)
+  unrealizedPnL   Float    @default(0)
+  realizedPnL     Float    @default(0)
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("portfolios")
+}
+
+model Leaderboard {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  rank           Int      @default(0)
+  portfolioValue Float    @default(1000000)
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("leaderboard")
+}
+
+model Competition {
+  id        String            @id @default(cuid())
+  status    CompetitionStatus @default(UPCOMING)
+  startTime DateTime?
+  endTime   DateTime?
+  createdAt DateTime          @default(now())
+
+  @@map("competitions")
+}

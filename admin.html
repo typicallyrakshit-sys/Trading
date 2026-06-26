@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYDC Crypto Trading - Admin Console</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- NYDC Brand Top Bar -->
+    <div class="topbar">
+        NYDC 2026 &nbsp;·&nbsp; CRYPTO TRADING CHAMPIONSHIP &nbsp;·&nbsp; POWERED BY <strong>GENSPARK</strong>
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-left">
+            <img src="assets/logo.png" alt="NYDC Logo" class="logo" onerror="this.src='nydc-logo.png'" />
+            <span class="competition-name">NYDC <span class="competition-name-accent">Admin</span> Console</span>
+        </div>
+
+        <div class="nav-right">
+            <span class="nav-item" id="admin-display-name">Admin Control</span>
+            <button class="logout-nav-btn" id="logout-btn">Sign Out</button>
+        </div>
+    </nav>
+
+    <!-- Main Workspace -->
+    <main class="admin-container">
+        <!-- Left Side: Create User Form -->
+        <section class="admin-card">
+            <h2>Register Participant</h2>
+            <form id="create-user-form">
+                <div class="login-form-group">
+                    <label for="reg-name">Participant Name</label>
+                    <input type="text" id="reg-name" class="login-input" required placeholder="John Doe">
+                </div>
+                <div class="login-form-group" style="margin-top: 12px;">
+                    <label for="reg-email">Email Address</label>
+                    <input type="email" id="reg-email" class="login-input" required placeholder="john@gmail.com">
+                </div>
+                <div class="login-form-group" style="margin-top: 12px;">
+                    <label for="reg-password">Password</label>
+                    <input type="password" id="reg-password" class="login-input" required placeholder="Min 6 characters">
+                </div>
+                <div class="login-form-group" style="margin-top: 12px;">
+                    <label for="reg-balance">Starting Balance (USDT)</label>
+                    <input type="number" id="reg-balance" class="login-input" value="100000" min="1000" required>
+                </div>
+                <button type="submit" class="login-btn">Create Account</button>
+            </form>
+        </section>
+
+        <!-- Right Side: Leaderboard Rankings -->
+        <section class="positions-container" style="margin: 0; padding: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 10px; margin-bottom: 15px;">
+                <h2 style="font-size: var(--fs-lg); font-weight: 600;">Participant Live Rankings</h2>
+                <div class="market-open" id="champion-leader-badge">LEADER: Calculating...</div>
+            </div>
+            <div class="positions-content" style="padding: 0;">
+                <table class="table" id="admin-leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Available Balance</th>
+                            <th>Portfolio Value</th>
+                            <th>Unrealized PnL</th>
+                            <th>Realized PnL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-leaderboard-body">
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: var(--text-secondary);">No participants registered.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+
+
+    <!-- Firebase Compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+    <script src="config.js"></script>
+    
+    <script>
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // Helper formatting functions
+        function formatCurrency(value) {
+            return `${Number(value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USDT`;
+        }
+
+        // Verify Admin Auth Status
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) {
+                window.location.href = "login.html";
+            } else {
+                try {
+                    const doc = await db.collection("users").doc(user.uid).get();
+                    if (!doc.exists || doc.data().role !== 'admin') {
+                        alert("Access Denied: Admin role required.");
+                        auth.signOut().then(() => window.location.href = "login.html");
+                    } else {
+                        document.getElementById("admin-display-name").textContent = `Admin: ${doc.data().name || 'Control'}`;
+                        setupAdminListeners();
+                    }
+                } catch (e) {
+                    console.error("Verification error:", e);
+                    window.location.href = "login.html";
+                }
+            }
+        });
+
+        // Logout
+        document.getElementById("logout-btn").onclick = () => {
+            auth.signOut().then(() => window.location.href = "login.html");
+        };
+
+        // Create User Form Submit
+        document.getElementById("create-user-form").onsubmit = async (e) => {
+            e.preventDefault();
+            const name = document.getElementById("reg-name").value.trim();
+            const email = document.getElementById("reg-email").value.trim();
+            const password = document.getElementById("reg-password").value;
+            const balance = parseFloat(document.getElementById("reg-balance").value) || 100000;
+
+            if (password.length < 6) return alert("Password must be at least 6 characters.");
+
+            try {
+                // Secondary Firebase App creation so the current logged-in admin is not signed out
+                const secondaryApp = firebase.initializeApp(firebaseConfig, "SecondaryAppInstance");
+                
+                const userCred = await secondaryApp.auth().createUserWithEmailAndPassword(email, password);
+                
+                await db.collection("users").doc(userCred.user.uid).set({
+                    name: name,
+                    email: email,
+                    role: 'participant',
+                    startingBalance: balance,
+                    availableBalance: balance,
+                    portfolioValue: balance,
+                    unrealizedPnL: 0,
+                    realizedPnL: 0,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                await secondaryApp.auth().signOut();
+                await secondaryApp.delete();
+
+                alert(`Participant account created successfully for ${name}!`);
+                document.getElementById("create-user-form").reset();
+                document.getElementById("reg-balance").value = "100000";
+            } catch (err) {
+                console.error("Account creation failed:", err);
+                alert("Creation Failed: " + err.message);
+            }
+        };
+
+        // Setup real-time leaderboard listener
+        function setupAdminListeners() {
+            db.collection("users")
+              .where("role", "==", "participant")
+              .onSnapshot((snapshot) => {
+                  const tbody = document.getElementById("admin-leaderboard-body");
+                  tbody.innerHTML = '';
+                  
+                  if (snapshot.empty) {
+                      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No participants registered.</td></tr>`;
+                      document.getElementById("champion-leader-badge").textContent = "LEADER: None";
+                      return;
+                  }
+
+                  // Retrieve all documents and sort them client-side by portfolioValue desc
+                  const participants = [];
+                  snapshot.forEach((doc) => {
+                      participants.push({ id: doc.id, ...doc.data() });
+                  });
+                  participants.sort((a, b) => (b.portfolioValue || 0) - (a.portfolioValue || 0));
+
+                  let rank = 1;
+                  participants.forEach((data) => {
+                      if (rank === 1) {
+                          document.getElementById("champion-leader-badge").textContent = `LEADER: ${data.name} (${formatCurrency(data.portfolioValue)})`;
+                      }
+
+                      const tr = document.createElement("tr");
+                      const upnlClass = (data.unrealizedPnL || 0) >= 0 ? 'profit' : 'loss';
+                      const rpnlClass = (data.realizedPnL || 0) >= 0 ? 'profit' : 'loss';
+
+                      tr.innerHTML = `
+                          <td><strong>#${rank}</strong></td>
+                          <td>${data.name}</td>
+                          <td>${data.email}</td>
+                          <td>${formatCurrency(data.availableBalance || 0)}</td>
+                          <td><strong>${formatCurrency(data.portfolioValue || 0)}</strong></td>
+                          <td class="${upnlClass}">${formatCurrency(data.unrealizedPnL || 0)}</td>
+                          <td class="${rpnlClass}">${formatCurrency(data.realizedPnL || 0)}</td>
+                      `;
+                      tbody.appendChild(tr);
+                      rank++;
+                  });
+              }, (err) => {
+                  console.error("Leaderboard query failed:", err);
+              });
+        }
+    </script>
+</body>
+</html>
