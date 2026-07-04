@@ -294,6 +294,7 @@ let currentSelectedSymbol = null;
 let binanceWS = null;
 let currentOrderType = 'market';
 let userEditedPrice = false;
+let lastFirestoreSyncTime = 0;
 
 // ==== Dynamic Portfolio Constants & State ====
 let initialBalance = 100000;
@@ -419,7 +420,7 @@ function setupFirebaseListeners() {
       .onSnapshot((snapshot) => {
         fbOrders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         populatePositionsTabs();
-        populateDashboard();
+        populateDashboard(true);
       }, err => console.error("orders snapshot error:", err));
     
     db.collection("positions")
@@ -427,7 +428,7 @@ function setupFirebaseListeners() {
       .onSnapshot((snapshot) => {
         fbPositions = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         populatePositionsTabs();
-        populateDashboard();
+        populateDashboard(true);
       }, err => console.error("positions snapshot error:", err));
     
     db.collection("history")
@@ -496,7 +497,7 @@ function init() {
 
            // Run normal client routines
            setupFirebaseListeners();
-           populateDashboard();
+           populateDashboard(true);
            populateWatchlist();
            populatePositionsTabs();
            connectBinanceWS();
@@ -511,7 +512,7 @@ function init() {
 }
 
 // ==== Dashboard Cards ====
-function populateDashboard() {
+function populateDashboard(forceSync = false) {
   calculatePortfolio();
   
   const unrealized = getUnrealizedPnL();
@@ -551,14 +552,21 @@ function populateDashboard() {
   const navValEl = $('#portfolio-value');
   if (navValEl) navValEl.textContent = formatCurrency(portfolio);
 
-  // Sync balances to user profile in Firestore so admin leaderboard updates in real-time
+  // Sync balances to user profile in Firestore so admin leaderboard updates in real-time.
+  // Throttled to once every 5 minutes (300,000 ms) to prevent Firestore quota exhaustion during high-frequency ticker updates.
+  // Real transaction actions (placing/filling orders, closing positions) will bypass this and update immediately.
   if (db && currentUser) {
-     db.collection("users").doc(currentUser.uid).update({
-        availableBalance: available,
-        portfolioValue: portfolio,
-        unrealizedPnL: unrealized,
-        realizedPnL: realized
-     }).catch(e => console.error("Error updating user leaderboard document:", e));
+     const now = Date.now();
+     const shouldSync = forceSync || (!document.hidden && (now - lastFirestoreSyncTime >= 300000));
+     if (shouldSync) {
+        lastFirestoreSyncTime = now;
+        db.collection("users").doc(currentUser.uid).update({
+           availableBalance: available,
+           portfolioValue: portfolio,
+           unrealizedPnL: unrealized,
+           realizedPnL: realized
+        }).catch(e => console.error("Error updating user leaderboard document:", e));
+     }
   }
   
   // Update floating chart position overlay
