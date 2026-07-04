@@ -295,6 +295,8 @@ let binanceWS = null;
 let currentOrderType = 'market';
 let userEditedPrice = false;
 let lastFirestoreSyncTime = 0;
+let wsReconnectDelay = 1000;
+const wsMaxReconnectDelay = 30000; // Max backoff delay to prevent overloading the backend
 
 // ==== Dynamic Portfolio Constants & State ====
 let initialBalance = 100000;
@@ -750,9 +752,24 @@ async function processOrderFill(order, fillPrice) {
 }
 
 function connectBinanceWS() {
-  if (binanceWS) binanceWS.close();
+  if (binanceWS) {
+    binanceWS.onclose = null;
+    binanceWS.close();
+  }
   
-  binanceWS = new WebSocket('wss://stream.binance.com:9443/ws/!miniTicker@arr');
+  try {
+    binanceWS = new WebSocket('wss://stream.binance.com:9443/ws/!miniTicker@arr');
+  } catch (e) {
+    console.error("Failed to create WebSocket:", e);
+    setTimeout(connectBinanceWS, wsReconnectDelay);
+    wsReconnectDelay = Math.min(wsReconnectDelay * 2, wsMaxReconnectDelay);
+    return;
+  }
+  
+  binanceWS.onopen = () => {
+    console.log("Binance WebSocket connected.");
+    wsReconnectDelay = 1000; // Reset reconnection delay on successful connection
+  };
   
   binanceWS.onmessage = (event) => {
     const data = JSON.parse(event.data);
@@ -809,8 +826,14 @@ function connectBinanceWS() {
     });
   };
   
+  binanceWS.onerror = (err) => {
+    console.error("Binance WebSocket error:", err);
+  };
+  
   binanceWS.onclose = () => {
-    setTimeout(connectBinanceWS, 3000); // Auto reconnect on failure
+    console.warn(`Binance WebSocket closed. Reconnecting in ${wsReconnectDelay}ms...`);
+    setTimeout(connectBinanceWS, wsReconnectDelay);
+    wsReconnectDelay = Math.min(wsReconnectDelay * 2, wsMaxReconnectDelay);
   };
 }
 
